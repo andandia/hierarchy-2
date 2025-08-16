@@ -1,8 +1,8 @@
 {
-    name hierarchy-2,
-    author truongnguyentungduy
-    version 1.0.0,
-    displayName hierarchy-2,
-    description better hierarchy,
-    unity 2020.3
+	"name": "hierarchy-2",
+	"author": "truongnguyentungduy(original)",
+	"version": "1.0.0",
+	"displayName": "hierarchy-2",
+	"description": "better hierarchy",
+	"unity": "2020.3"
 }
