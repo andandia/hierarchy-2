@@ -4,5 +4,6 @@
 	"version": "1.0.0",
 	"displayName": "hierarchy-2",
 	"description": "better hierarchy",
-	"unity": "2020.3"
+	"unity": "2020.3",
+	"main": "Assets/Plugins/Hierarchy2/Editor/Hierarchy2.cs"
 }
