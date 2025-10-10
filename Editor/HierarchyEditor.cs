@@ -709,7 +709,6 @@ namespace Hierarchy2
             rect.height = rowItem.rect.height;
             rect.x += GLOBAL_SPACE_OFFSET_LEFT;
             rect.width -= GLOBAL_SPACE_OFFSET_LEFT;
-
             Color guiColor = GUI.color;
             GUI.color = ThemeData.colorHeaderBackground;
             GUI.DrawTexture(rect, Resources.PixelWhite, ScaleMode.StretchToFill);
@@ -1870,6 +1869,12 @@ namespace Hierarchy2
                 //    Undo.SetTransformParent(gameObject.transform, ( (GameObject) command.context ).transform, "Create Header");
 
                 Selection.activeTransform = gameObject.transform;
+            }
+
+            [MenuItem("Tools/Hierarchy 2/Settings", priority = 0)]
+            static void OpenHierarchyProjectSettings()
+            {
+                SettingsService.OpenProjectSettings("Project/Hierarchy");
             }
         }
     }
