@@ -31,6 +31,7 @@ namespace Hierarchy2
             public ThemeData(ThemeData themeData)
             {
                 colorRowEven = themeData.colorRowEven;
+
                 colorRowOdd = themeData.colorRowOdd;
                 colorGrid = themeData.colorGrid;
                 colorTreeView = themeData.colorTreeView;
@@ -41,6 +42,31 @@ namespace Hierarchy2
                 selectionColor = themeData.selectionColor;
                 colorHeaderTitle = themeData.colorHeaderTitle;
                 colorHeaderBackground = themeData.colorHeaderBackground;
+
+                CheckColorTransparency(colorRowEven, nameof(colorRowEven));
+                CheckColorTransparency(colorRowOdd, nameof(colorRowOdd));
+                CheckColorTransparency(colorGrid, nameof(colorGrid));
+                CheckColorTransparency(colorTreeView, nameof(colorTreeView));
+                CheckColorTransparency(colorLockIcon, nameof(colorLockIcon));
+                CheckColorTransparency(tagColor, nameof(tagColor));
+                CheckColorTransparency(layerColor, nameof(layerColor));
+                CheckColorTransparency(comSelBGColor, nameof(comSelBGColor));
+                CheckColorTransparency(selectionColor, nameof(selectionColor));
+                CheckColorTransparency(colorHeaderTitle, nameof(colorHeaderTitle));
+                CheckColorTransparency(colorHeaderBackground, nameof(colorHeaderBackground));
+            }
+
+            /// <summary>
+            /// 色のアルファ値が0に近い場合に警告ログを出力するヘルパー関数
+            /// </summary>
+            private readonly void CheckColorTransparency(Color color, string colorName)
+            {
+                // 厳密な0ではなく、浮動小数点誤差を考慮して非常に小さな値（Epsilon）と比較することが推奨されます。
+                // UnityのColor構造体は通常、0.0001未満であればほぼ0と見なせます。
+                if (Mathf.Approximately(color.a, 0f))
+                {
+                    Debug.LogWarning($"[ThemeData] の '{colorName}' が透明です (Alpha = 0). これにより、要素が非表示になるレンダリングの問題が発生する可能性があります。Hierarchyの設定をご確認ください。");
+                }
             }
 
             public void BlendMultiply(Color blend)
