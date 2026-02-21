@@ -16,13 +16,21 @@ using UnityEngine.UIElements;
 
 namespace Hierarchy2
 {
+    /// <summary>
+    /// Hierarchyウィンドウの表示をカスタマイズするためのエディタ拡張クラス
+    /// </summary>
     [InitializeOnLoad]
     public sealed class HierarchyEditor
     {
+        // グローバルな左側のオフセット値
         internal const int GLOBAL_SPACE_OFFSET_LEFT = 16 * 2;
 
+        // シングルトンインスタンス
         static HierarchyEditor instance;
 
+        /// <summary>
+        /// シングルトンインスタンスへのアクセサ
+        /// </summary>
         public static HierarchyEditor Instance
         {
             get
@@ -34,107 +42,147 @@ namespace Hierarchy2
             private set { instance = value; }
         }
 
+        // 選択されたコンポーネントを保持する辞書
         Dictionary<int, UnityEngine.Object> selectedComponents = new Dictionary<int, UnityEngine.Object>();
+        // 表示対象のコンポーネント名を保持する辞書
         Dictionary<string, string> dicComponents = new Dictionary<string, string>(StringComparer.Ordinal);
+        // 現在アクティブなコンポーネント
         UnityEngine.Object activeComponent;
 
+        // ツールチップ表示用のGUIContent
         GUIContent tooltipContent = new GUIContent();
 
+        // Hierarchy設定
         HierarchySettings settings;
+        // Hierarchyリソース（アイコンなど）
         HierarchyResources resources;
 
+        // 使用中のテーマデータ
         HierarchySettings.ThemeData ThemeData
         {
             get { return settings.usedTheme; }
         }
 
+        // 最も深い行のインデックス
         int deepestRow = int.MinValue;
+        // 前回の行インデックス
         int previousRowIndex = int.MinValue;
 
+        // シーンのインデックス
         int sceneIndex = 0;
+        // 現在のシーン
         Scene currentScene;
+        // 前回のシーン
         Scene previousScene;
 
+        // マルチシーン編集モードかどうか
         public static bool IsMultiScene
         {
             get { return SceneManager.sceneCount > 1; }
         }
 
+        // Invoke後に選択スタイルを適用したかどうかのフラグ
         bool selectionStyleAfterInvoke = false;
+        // すべてのHierarchyウィンドウをチェック中かどうかのフラグ
         bool checkingAllHierarchy = false;
 
+        // 現在のイベント
         Event currentEvent;
 
+        // 現在処理中の行アイテムデータ
         RowItem rowItem = new RowItem();
+        // ひとつ前の要素
         RowItem previousElement = null;
+        // 横幅の使用状況
         WidthUse widthUse = WidthUse.zero;
 
+        // 静的コンストラクタ。インスタンスを初期化する
         static HierarchyEditor()
         {
             if (instance == null)
                 instance = new HierarchyEditor();
         }
 
+        // コンストラクタ
         public HierarchyEditor()
         {
+            // リフレクションによる内部フィールド等の取得
             InternalReflection();
+            // エディタ起動時の更新イベント登録
             EditorApplication.update += EditorAwake;
+            // パッケージインポート完了時のイベント登録
             AssetDatabase.importPackageCompleted += ImportPackageCompleted;
         }
 
+        // 内部エディタ型のリスト
         static List<Type> InternalEditorType = new List<Type>();
         static Dictionary<string, Type> dicInternalEditorType = new Dictionary<string, Type>();
+        // Hierarchyに表示するスクリプト型のリスト
         static List<Type> DisplayOnHierarchyScriptType = new List<Type>();
         static Dictionary<string, Type> dicDisplayOnHierarchyScriptType = new Dictionary<string, Type>();
 
+        // Unity内部のエディタウィンドウ型
         static Type SceneHierarchyWindow;
         static Type SceneHierarchy;
         static Type GameObjectTreeViewGUI;
 
+        // リフレクションで取得するフィールド情報
         static FieldInfo m_SceneHierarchy;
         static FieldInfo m_TreeView;
         static PropertyInfo gui;
         static FieldInfo k_IconWidth;
 
+        // リフレクションで取得するメソッドのデリゲート
         static Func<SearchableEditorWindow> lastInteractedHierarchyWindowDelegate;
         static Func<IEnumerable> GetAllSceneHierarchyWindowsDelegate;
         static Func<GameObject, Rect, bool, bool> IconSelectorShowAtPositionDelegate;
         static Action<Rect, UnityEngine.Object, int> DisplayObjectContextMenuDelegate;
 
+        // Hierarchyウィンドウ再描画時のコールバック
         public static Action OnRepaintHierarchyWindowCallback;
+        // ウィンドウの並び順変更時のコールバック
         public static Action OnWindowsReorderedCallback;
 
+        /// <summary>
+        /// リフレクションを使用してUnity内部の非公開フィールドやメソッドを取得・初期化する
+        /// </summary>
         static void InternalReflection()
         {
+            // Editorアセンブリ内の全型を取得
             var arrayInteralEditorType = typeof(Editor).Assembly.GetTypes();
             InternalEditorType = arrayInteralEditorType.ToList();
             dicInternalEditorType = arrayInteralEditorType.ToDictionary(type => type.FullName);
 
+            // Hierarchy更新デリゲートのフック
             FieldInfo refreshHierarchy = typeof(EditorApplication).GetField(nameof(refreshHierarchy), BindingFlags.Static | BindingFlags.NonPublic);
             MethodInfo OnRepaintHierarchyWindow = typeof(HierarchyEditor).GetMethod(nameof(OnRepaintHierarchyWindow), BindingFlags.NonPublic | BindingFlags.Static);
             Delegate refreshHierarchyDelegate = Delegate.CreateDelegate(typeof(EditorApplication.CallbackFunction), OnRepaintHierarchyWindow);
             refreshHierarchy.SetValue(null, refreshHierarchyDelegate);
 
-
+            // ウィンドウ並び替えデリゲートのフック
             FieldInfo windowsReordered = typeof(EditorApplication).GetField(nameof(windowsReordered), BindingFlags.Static | BindingFlags.NonPublic);
             MethodInfo OnWindowsReordered = typeof(HierarchyEditor).GetMethod(nameof(OnWindowsReordered), BindingFlags.NonPublic | BindingFlags.Static);
             Delegate windowsReorderedDelegate = Delegate.CreateDelegate(typeof(EditorApplication.CallbackFunction), OnWindowsReordered);
             windowsReordered.SetValue(null, windowsReorderedDelegate);
 
+            // 必要な内部型の取得
             {
                 dicInternalEditorType.TryGetValue(nameof(UnityEditor) + "." + nameof(SceneHierarchyWindow), out SceneHierarchyWindow);
                 dicInternalEditorType.TryGetValue(nameof(UnityEditor) + "." + nameof(GameObjectTreeViewGUI), out GameObjectTreeViewGUI); //GameObjectTreeViewGUI : TreeViewGUI
                 dicInternalEditorType.TryGetValue(nameof(UnityEditor) + "." + nameof(SceneHierarchy), out SceneHierarchy);
             }
 
+            // 最後に操作されたHierarchyウィンドウを取得するメソッド
             FieldInfo s_LastInteractedHierarchy = SceneHierarchyWindow.GetField(nameof(s_LastInteractedHierarchy), BindingFlags.NonPublic | BindingFlags.Static);
 
             MethodInfo lastInteractedHierarchyWindow = SceneHierarchyWindow.GetProperty(nameof(lastInteractedHierarchyWindow), BindingFlags.Static | BindingFlags.Public).GetGetMethod();
             lastInteractedHierarchyWindowDelegate = Delegate.CreateDelegate(typeof(Func<SearchableEditorWindow>), lastInteractedHierarchyWindow) as Func<SearchableEditorWindow>;
 
+            // 全てのHierarchyウィンドウを取得するメソッド
             MethodInfo GetAllSceneHierarchyWindows = SceneHierarchyWindow.GetMethod(nameof(GetAllSceneHierarchyWindows), BindingFlags.Static | BindingFlags.Public);
             GetAllSceneHierarchyWindowsDelegate = Delegate.CreateDelegate(typeof(Func<IEnumerable>), GetAllSceneHierarchyWindows) as Func<IEnumerable>;
 
+            // 内部フィールドの取得
             {
                 m_SceneHierarchy = SceneHierarchyWindow.GetField(nameof(m_SceneHierarchy), BindingFlags.NonPublic | BindingFlags.Instance);
                 m_TreeView = SceneHierarchy.GetField(nameof(m_TreeView), BindingFlags.NonPublic | BindingFlags.Instance);
@@ -142,13 +190,14 @@ namespace Hierarchy2
                 k_IconWidth = GameObjectTreeViewGUI.GetField(nameof(k_IconWidth), BindingFlags.Public | BindingFlags.Instance);
             }
 
+            // オブジェクトのコンテキストメニュー表示メソッド
             MethodInfo DisplayObjectContextMenu = typeof(EditorUtility).GetMethods(BindingFlags.Static | BindingFlags.NonPublic).Single
             (
                 method => method.Name == nameof(DisplayObjectContextMenu) && method.GetParameters()[1].ParameterType == typeof(UnityEngine.Object)
             );
             DisplayObjectContextMenuDelegate = Delegate.CreateDelegate(typeof(Action<Rect, UnityEngine.Object, int>), DisplayObjectContextMenu) as Action<Rect, UnityEngine.Object, int>;
 
-
+            // アイコンセレクター表示メソッド
             Type IconSelector = typeof(EditorWindow).Assembly.GetTypes().Single(type =>
                 type.BaseType == typeof(EditorWindow) && type.Name == nameof(IconSelector)) as Type;
             MethodInfo ShowAtPosition = IconSelector.GetMethods(BindingFlags.Static | BindingFlags.NonPublic).Single
@@ -158,6 +207,7 @@ namespace Hierarchy2
             );
             IconSelectorShowAtPositionDelegate = Delegate.CreateDelegate(typeof(Func<GameObject, Rect, bool, bool>), ShowAtPosition) as Func<GameObject, Rect, bool, bool>;
 
+            // TreeView関連の内部メソッド・プロパティ取得
             GetItemAndRowIndexMethod = m_TreeView.FieldType.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance).Single(method => method.Name == "GetItemAndRowIndex");
 
             m_TreeView_IData = m_TreeView.FieldType.GetProperties(BindingFlags.Public | BindingFlags.Instance).Single(property => property.Name == "data");
@@ -165,28 +215,35 @@ namespace Hierarchy2
             m_Rows = InternalEditorType.Find(type => type.Name == "TreeViewDataSource").GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Single(field => field.Name.Contains(nameof(m_Rows)));
         }
 
+        // 全てのシーン階層ウィンドウを取得する
         public static IEnumerable GetAllSceneHierarchyWindows() => GetAllSceneHierarchyWindowsDelegate();
 
+        // オブジェクトのコンテキストメニューを表示する
         public static void DisplayObjectContextMenu(Rect rect, UnityEngine.Object unityObject, int value) => DisplayObjectContextMenuDelegate(rect, unityObject, value);
 
+        // アイコンセレクターを指定位置に表示する
         public static bool IconSelectorShowAtPosition(GameObject gameObject, Rect rect, bool value) => IconSelectorShowAtPositionDelegate(gameObject, rect, value);
 
         private static MethodInfo GetItemAndRowIndexMethod;
         private static PropertyInfo m_TreeView_IData;
         private static FieldInfo m_Rows;
 
+        // Hierarchyウィンドウ再描画時の処理
         static void OnRepaintHierarchyWindow()
         {
             OnRepaintHierarchyWindowCallback?.Invoke();
         }
 
+        // ウィンドウ並び替え時の処理
         static void OnWindowsReordered()
         {
             OnWindowsReorderedCallback?.Invoke();
         }
 
+        // エディタ起動時の初期化処理
         void EditorAwake()
         {
+            // 設定とリソースの読み込み
             settings = HierarchySettings.GetAssets();
             if (settings is null) return;
             OnSettingsChanged(nameof(settings.components));
@@ -196,8 +253,10 @@ namespace Hierarchy2
             if (resources is null) return;
             resources.GenerateKeyForAssets();
 
+            // HierarchyのGUIイベント登録
             EditorApplication.hierarchyWindowItemOnGUI += HierarchyOnGUI;
 
+            // 設定に応じて有効化/無効化
             if (settings.activeHierarchy)
                 Invoke();
             else
@@ -206,15 +265,18 @@ namespace Hierarchy2
             EditorApplication.update -= EditorAwake;
         }
 
+        // パッケージインポート完了時
         void ImportPackageCompleted(string packageName)
         {
         }
 
+        // 設定変更時のコールバック
         void OnSettingsChanged(string param)
         {
             switch (param)
             {
                 case nameof(settings.components):
+                    // 表示コンポーネントのリストを更新
                     dicComponents.Clear();
                     foreach (string componentType in settings.components)
                     {
@@ -228,6 +290,7 @@ namespace Hierarchy2
             EditorApplication.RepaintHierarchyWindow();
         }
 
+        // 機能を有効化し、各種イベントハンドラを登録する
         public void Invoke()
         {
             EditorSceneManager.newSceneCreated += OnNewSceneCreated;
@@ -252,6 +315,7 @@ namespace Hierarchy2
             EditorApplication.RepaintProjectWindow();
         }
 
+        // 機能を無効化し、イベントハンドラを解除する
         public void Dispose()
         {
             EditorSceneManager.newSceneCreated -= OnNewSceneCreated;
@@ -271,7 +335,7 @@ namespace Hierarchy2
 
             EditorApplication.update -= OnEditorUpdate;
 
-
+            // ウィンドウタイトルを元に戻す
             foreach (EditorWindow window in GetAllSceneHierarchyWindowsDelegate())
             {
                 window.titleContent.text = "Hierarchy";
@@ -281,10 +345,13 @@ namespace Hierarchy2
             EditorApplication.RepaintProjectWindow();
         }
 
+        // 前回の更新時間
         double lastTimeSinceStartup = EditorApplication.timeSinceStartup;
 
+        // エディタの更新ループ
         void OnEditorUpdate()
         {
+            // 1秒ごとに遅延呼び出し処理を実行
             if (EditorApplication.timeSinceStartup - lastTimeSinceStartup >= 1)
             {
                 DelayCall();
@@ -292,10 +359,12 @@ namespace Hierarchy2
             }
         }
 
+        // 定期的に実行される処理（ウィンドウの管理など）
         void DelayCall()
         {
             if (checkingAllHierarchy == true)
             {
+                // 閉じたウィンドウの情報をクリーンアップ
                 for (int i = 0; i < HierarchyWindow.windows.Count; ++i)
                 {
                     if (HierarchyWindow.windows[i].editorWindow == null)
@@ -305,6 +374,7 @@ namespace Hierarchy2
                     }
                 }
 
+                // 新しいHierarchyウィンドウを追跡対象に追加
                 foreach (EditorWindow window in GetAllSceneHierarchyWindowsDelegate())
                 {
                     if (!HierarchyWindow.instances.ContainsKey(window.GetInstanceID()))
@@ -389,10 +459,12 @@ namespace Hierarchy2
             }
         }
 
+        // Hierarchyの各アイテム描画時のGUI処理
         void HierarchyOnGUI(int selectionID, Rect selectionRect)
         {
             currentEvent = Event.current;
 
+            // Ctrl+H で機能の有効/無効を切り替え
             if (currentEvent.type == EventType.KeyDown && currentEvent.keyCode == KeyCode.H && currentEvent.control)
             {
                 if (!settings.activeHierarchy)
@@ -407,6 +479,7 @@ namespace Hierarchy2
             if (!settings.activeHierarchy)
                 return;
 
+            // Ctrl+D (複製) の場合は処理しない
             if (currentEvent.control && currentEvent.keyCode == KeyCode.D)
                 return;
 
@@ -422,11 +495,13 @@ namespace Hierarchy2
 
             checkingAllHierarchy = true;
 
+            // Invoke後にマウスダウンがあった場合、選択スタイル適用済みとする
             if (selectionStyleAfterInvoke == false && currentEvent.type == EventType.MouseDown)
             {
                 selectionStyleAfterInvoke = true;
             }
 
+            // 行アイテム情報の更新
             rowItem.Dispose();
             rowItem.ID = selectionID;
             rowItem.gameObject = EditorUtility.InstanceIDToObject(rowItem.ID) as GameObject;
@@ -441,11 +516,13 @@ namespace Hierarchy2
             if (!rowItem.isNull)
             {
                 rowItem.hierarchyFolder = rowItem.gameObject.GetComponent<HierarchyFolder>();
+                // HierarchyFolderコンポーネントがあるか、またはセパレータとして扱うか
                 if (!(rowItem.isFolder = rowItem.hierarchyFolder))
                     rowItem.isSeparator = rowItem.name.StartsWith(settings.separatorStartWith);
 
                 rowItem.isDirty = EditorUtility.IsDirty(selectionID);
 
+                // プレハブ判定
                 if (true && !rowItem.isSeparator && rowItem.isDirty)
                 {
                     rowItem.isPrefab = PrefabUtility.IsPartOfAnyPrefab(rowItem.gameObject);
@@ -458,6 +535,7 @@ namespace Hierarchy2
             rowItem.isRootObject = rowItem.isNull || rowItem.gameObject.transform.parent == null ? true : false;
             rowItem.isMouseHovering = selectionRect.Contains(currentEvent.mousePosition);
 
+            // 最初の行の処理（シーンヘッダなど）
             if (rowItem.isFirstRow) //Instance always null
             {
                 sceneIndex = 0;
@@ -465,25 +543,30 @@ namespace Hierarchy2
                 if (deepestRow > previousRowIndex)
                     deepestRow = previousRowIndex;
 
+                // バージョン表示や背景描画（コメントアウト中）
                 // if (settings.displayVersion)
                 //     BottomRightArea(selectionRect);
 
                 // Background(selectionRect);
             }
 
+            // GameObjectがnullの場合（シーンセパレータなど）
             if (rowItem.isNull)
             {
                 if (!IsMultiScene)
                     currentScene = SceneManager.GetActiveScene();
                 else
                 {
+                    // マルチシーンの場合、適切なシーンを取得
                     if (!rowItem.isFirstRow && sceneIndex < SceneManager.sceneCount - 1)
                         sceneIndex++;
                     currentScene = SceneManager.GetSceneAt(sceneIndex);
                 }
 
+                // シーン名のリネームUI
                 RenameSceneInHierarchy();
 
+                // 背景色描画
                 if (settings.displayRowBackground)
                 {
                     if (deepestRow != rowItem.rowIndex)
@@ -500,6 +583,7 @@ namespace Hierarchy2
             }
             else
             {
+                // 各GameObject行の描画
                 if (rowItem.isFirstElement)
                 {
                     if (deepestRow > previousRowIndex)
@@ -534,6 +618,7 @@ namespace Hierarchy2
 
                 var isPrefabMode = PrefabStageUtility.GetCurrentPrefabStage() != null ? true : false;
 
+                // 背景縞模様の描画
                 if (settings.displayRowBackground && deepestRow != rowItem.rowIndex)
                 {
                     if (isPrefabMode)
@@ -548,25 +633,29 @@ namespace Hierarchy2
                         DisplayRowBackground();
                 }
 
-
+                // フォルダアイコンの表示
                 if (rowItem.isFolder)
                 {
                     var icon = rowItem.childCount > 0 ? Resources.FolderIcon : Resources.EmptyFolderIcon;
                     DisplayCustomObjectIcon(icon);
                 }
 
+                // セパレータの描画
                 if (rowItem.isSeparator && rowItem.isRootObject)
                 {
                     ElementAsSeparator();
                     goto FINISH;
                 }
 
+                // 特定条件での背景色変更
                 if (settings.useInstantBackground)
                     CustomRowBackground();
 
+                // ツリービューの線を描画
                 if (settings.displayTreeView && !rowItem.isRootObject)
                     DisplayTreeView();
 
+                // カスタムアイコンの表示
                 if (settings.displayCustomObjectIcon)
                     DisplayCustomObjectIcon(null);
 
@@ -577,12 +666,14 @@ namespace Hierarchy2
 
                 widthUse.afterName += settings.offSetIconAfterName;
 
+                // 編集不可アイコンの表示
                 DisplayEditableIcon();
 
                 // DisplayNoteIcon();
 
                 widthUse.afterName += 8;
 
+                // タグの表示
                 if (settings.displayTag && !rowItem.gameObject.CompareTag("Untagged"))
                 {
                     if (!settings.onlyDisplayWhileMouseEnter ||
@@ -595,6 +686,7 @@ namespace Hierarchy2
                     }
                 }
 
+                // レイヤーの表示
                 if (settings.displayLayer && rowItem.gameObject.layer != 0)
                 {
                     if (!settings.onlyDisplayWhileMouseEnter ||
@@ -607,6 +699,7 @@ namespace Hierarchy2
                     }
                 }
 
+                // コンポーネントアイコンの表示
                 if (settings.displayComponents)
                 {
                     if (!settings.onlyDisplayWhileMouseEnter ||
@@ -619,9 +712,11 @@ namespace Hierarchy2
                     }
                 }
 
+                // その他の要素イベント処理
                 ElementEvent(rowItem);
 
                 FINISH:
+                // グリッド線の表示
                 if (settings.displayGrid)
                     DisplayGrid();
 
@@ -636,6 +731,7 @@ namespace Hierarchy2
             }
         }
 
+        // フォントスタイルからGUIStyleを取得
         GUIStyle TreeStyleFromFont(FontStyle fontStyle)
         {
             GUIStyle style;
@@ -661,6 +757,7 @@ namespace Hierarchy2
             return style;
         }
 
+        // 条件に基づき行の背景色をカスタム描画する
         void CustomRowBackground()
         {
             if (currentEvent.type != EventType.Repaint)
@@ -696,6 +793,7 @@ namespace Hierarchy2
             GUI.color = guiColor;
         }
 
+        // オブジェクトをセパレータとして描画する
         void ElementAsSeparator()
         {
             if (currentEvent.type != EventType.Repaint)
@@ -720,15 +818,18 @@ namespace Hierarchy2
             GUI.color = guiColor;
         }
 
+        // アイテムに対するキーイベントやマウスイベントの処理
         void ElementEvent(RowItem element)
         {
             if (currentEvent.type == EventType.KeyDown)
             {
+                // Ctrl+Shift+Alt+C で全て折りたたむ
                 if (currentEvent.control && currentEvent.shift && currentEvent.alt &&
                     currentEvent.keyCode == KeyCode.C && lastInteractedHierarchyWindowDelegate() != null)
                     CollapseAll();
             }
 
+            // F2キーでリネームポップアップ表示
             if (currentEvent.type == EventType.KeyUp &&
                 currentEvent.keyCode == KeyCode.F2 &&
                 Selection.gameObjects.Length > 1)
@@ -738,6 +839,7 @@ namespace Hierarchy2
                 return;
             }
 
+            // マウスホイールクリックでアクティブ状態の切り替え
             if (element.rect.Contains(currentEvent.mousePosition) && currentEvent.type == EventType.MouseUp &&
                 currentEvent.button == 2)
             {
@@ -749,6 +851,7 @@ namespace Hierarchy2
             }
         }
 
+        // Staticアイコンの表示と切り替え処理
         void StaticIcon(RowItem element)
         {
             if (!element.isStatic) return;
@@ -775,6 +878,7 @@ namespace Hierarchy2
             GUISeparator(rect, Color.magenta);
         }
 
+        // Staticフラグを子オブジェクトにも適用する再帰関数
         void ApplyStaticTargetAndChild(Transform target, bool value)
         {
             target.gameObject.isStatic = value;
@@ -783,6 +887,7 @@ namespace Hierarchy2
                 ApplyStaticTargetAndChild(target.GetChild(i), value);
         }
 
+        // カスタムオブジェクトアイコンの表示
         void DisplayCustomObjectIcon(Texture icon)
         {
             var rect = RectFromRight(rowItem.nameRect, 16, rowItem.nameRect.width + 1);
@@ -819,6 +924,7 @@ namespace Hierarchy2
             }
         }
 
+        // ロック（編集不可）アイコンの表示と解除メニュー
         void DisplayEditableIcon()
         {
             if (rowItem.gameObject.hideFlags == HideFlags.NotEditable)
@@ -864,6 +970,7 @@ namespace Hierarchy2
 
         void DisplayNoteIcon()
         {
+            // ノートアイコン表示機能（コメントアウト中）
             // if (!element.hasLocalData || element.data.note == "")
             //     return;
 
@@ -891,6 +998,7 @@ namespace Hierarchy2
             // widthUse.afterName += 2;
         }
 
+        // コンポーネントアイコン一覧の表示
         void DisplayComponents()
         {
             var components = rowItem.gameObject.GetComponents(typeof(Component)).ToList<UnityEngine.Object>();
@@ -1011,6 +1119,7 @@ namespace Hierarchy2
             }
         }
 
+        // 個別のコンポーネントアイコン描画とクリックイベント処理
         void ComponentIcon(UnityEngine.Object component, Type componentType, Rect rect, bool isMaterial = false)
         {
             int comHash = component.GetHashCode();
@@ -1039,6 +1148,7 @@ namespace Hierarchy2
             {
                 if (currentEvent.type == EventType.MouseDown)
                 {
+                    // 左クリック：選択
                     if (currentEvent.button == 0)
                     {
                         if (currentEvent.control)
@@ -1064,6 +1174,7 @@ namespace Hierarchy2
                         return;
                     }
 
+                    // 右クリック：コンテキストメニュー
                     if (currentEvent.button == 1)
                     {
                         if (currentEvent.control)
@@ -1100,6 +1211,7 @@ namespace Hierarchy2
 
                 if (currentEvent.type == EventType.MouseUp)
                 {
+                    // 中クリック：インスペクター表示
                     if (currentEvent.button == 2)
                     {
                         List<UnityEngine.Object> inspectorComponents = new List<UnityEngine.Object>();
@@ -1152,6 +1264,7 @@ namespace Hierarchy2
             // GUI.color = Color.white;
         }
 
+        // タグの表示と変更メニュー
         void DisplayTag()
         {
             GUIContent tagContent = new GUIContent(rowItem.gameObject.tag);
@@ -1210,6 +1323,7 @@ namespace Hierarchy2
             }
         }
 
+        // タグを子オブジェクトにも適用する再帰関数
         void ApplyTagTargetAndChild(Transform target, string tag)
         {
             Undo.RegisterCompleteObjectUndo(target.gameObject, "Change Tag");
@@ -1219,6 +1333,7 @@ namespace Hierarchy2
                 ApplyTagTargetAndChild(target.GetChild(i), tag);
         }
 
+        // レイヤーの表示と変更メニュー
         void DisplayLayer()
         {
             GUIContent layerContent = new GUIContent(LayerMask.LayerToName(rowItem.gameObject.layer));
@@ -1277,6 +1392,7 @@ namespace Hierarchy2
             }
         }
 
+        // レイヤーを子オブジェクトにも適用する再帰関数
         void ApplyLayerTargetAndChild(Transform target, int layer)
         {
             Undo.RegisterCompleteObjectUndo(target.gameObject, "Change Layer");
@@ -1286,6 +1402,7 @@ namespace Hierarchy2
                 ApplyLayerTargetAndChild(target.GetChild(i), layer);
         }
 
+        // 行の背景色を描画
         void DisplayRowBackground(bool nextRow = true)
         {
             if (currentEvent.type != EventType.Repaint)
@@ -1306,6 +1423,7 @@ namespace Hierarchy2
             GUI.color = guiColor;
         }
 
+        // グリッド線を描画
         void DisplayGrid()
         {
             if (currentEvent.type != EventType.Repaint)
@@ -1324,6 +1442,7 @@ namespace Hierarchy2
             GUI.color = guiColor;
         }
 
+        // ツリー構造（枝）の表示
         void DisplayTreeView()
         {
             if (currentEvent.type != EventType.Repaint)
@@ -1369,6 +1488,7 @@ namespace Hierarchy2
 
         GUIContent tmpSceneContent = new GUIContent();
 
+        // シーン名のリネームUI
         void RenameSceneInHierarchy()
         {
             string name = currentScene.name;
@@ -1408,16 +1528,21 @@ namespace Hierarchy2
             EditorSceneManager.MarkSceneDirty(scene);
         }
 
+        // 最初の要素かどうかの判定
         bool IsFirstElement(Rect rect) => previousRowIndex > rect.y / rect.height;
 
+        // 最初の行かどうかの判定
         bool IsFirstRow(Rect rect) => rect.y / rect.height == 0;
 
+        // 行インデックスの取得
         int GetRowIndex(Rect rect) => (int) (rect.y / rect.height);
 
+        // 選択中かどうかの判定
         bool InSelection(int ID) => Selection.Contains(ID) ? true : false;
 
         bool IsElementDirty(int ID) => EditorUtility.IsDirty(ID);
 
+        // 右側基準でRectを計算するユーティリティ
         Rect RectFromRight(Rect rect, float width, float usedWidth)
         {
             usedWidth += width;
@@ -1426,6 +1551,7 @@ namespace Hierarchy2
             return rect;
         }
 
+        // 右側基準でRectを計算し、使用幅を更新する
         Rect RectFromRight(Rect rect, float width, ref float usedWidth)
         {
             usedWidth += width;
@@ -1443,6 +1569,7 @@ namespace Hierarchy2
             return rect;
         }
 
+        // 左側基準でRectを計算するユーティリティ
         Rect RectFromLeft(Rect rect, float width, float usedWidth, bool usexmin = true)
         {
             if (usexmin)
@@ -1453,6 +1580,7 @@ namespace Hierarchy2
             return rect;
         }
 
+        // 左側基準でRectを計算し、使用幅を更新する
         Rect RectFromLeft(Rect rect, float width, ref float usedWidth, bool usexmin = true)
         {
             if (usexmin)
@@ -1474,6 +1602,7 @@ namespace Hierarchy2
             return rect;
         }
 
+        // GUIのセパレータ（縦線など）を描画
         void GUISeparator(Rect rect, Color color)
         {
             Color guiColor = GUI.color;
@@ -1482,6 +1611,7 @@ namespace Hierarchy2
             GUI.color = guiColor;
         }
 
+        // 幅の使用状況を保持する構造体
         struct WidthUse
         {
             public float left;
@@ -1501,6 +1631,7 @@ namespace Hierarchy2
             }
         }
 
+        // 個々のHierarchyウィンドウを管理する内部クラス
         sealed class HierarchyWindow
         {
             public static Dictionary<int, EditorWindow> instances = new Dictionary<int, EditorWindow>();
@@ -1557,6 +1688,7 @@ namespace Hierarchy2
             }
         }
 
+        // 行アイテムのデータ保持クラス
         sealed class RowItem
         {
             public int ID = int.MinValue;
@@ -1620,6 +1752,7 @@ namespace Hierarchy2
             }
         }
 
+        // テクスチャリソース管理クラス
         internal sealed class Resources
         {
             private static Texture2D pixelWhite;
@@ -1708,6 +1841,7 @@ namespace Hierarchy2
             }
         }
 
+        // GUIスタイル管理クラス
         internal static class Styles
         {
             internal static GUIStyle lineStyle = new GUIStyle("TV Line");
@@ -1768,6 +1902,7 @@ namespace Hierarchy2
             };
         }
 
+        // メニューコマンド定義クラス
         internal sealed class MenuCommand
         {
             const int priority = 200;

@@ -1,8 +1,10 @@
 {
-	"name": "hierarchy-2",
-	"author": "truongnguyentungduy(original)",
-	"version": "1.0.0",
-	"displayName": "hierarchy-2",
-	"description": "better hierarchy",
-	"unity": "2020.3"
+  "name": "hierarchy-2",
+  "author": {
+    "name": "truongnguyentungduy(original)"
+  },
+  "version": "1.0.1",
+  "displayName": "hierarchy-2",
+  "description": "better hierarchy and more",
+  "unity": "2020.3"
 }
