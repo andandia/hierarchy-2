@@ -364,32 +364,36 @@ namespace Hierarchy2
         {
             if (checkingAllHierarchy == true)
             {
-                // 閉じたウィンドウの情報をクリーンアップ
-                for (int i = 0; i < HierarchyWindow.windows.Count; ++i)
-                {
-                    if (HierarchyWindow.windows[i].editorWindow == null)
-                    {
-                        HierarchyWindow.windows[i].Dispose();
-                        --i;
-                    }
-                }
-
-                // 新しいHierarchyウィンドウを追跡対象に追加
-                foreach (EditorWindow window in GetAllSceneHierarchyWindowsDelegate())
-                {
-                    if (!HierarchyWindow.instances.ContainsKey(window.GetInstanceID()))
-                    {
-                        var hierarchyWindow = new HierarchyWindow(window);
-                        hierarchyWindow.SetWindowTitle("Hierarchy 2");
-                    }
-                }
-
+                UpdateHierarchyWindowInstances();
                 checkingAllHierarchy = false;
             }
 
             if (hierarchyChangedRequireUpdating == true)
             {
                 hierarchyChangedRequireUpdating = false;
+            }
+        }
+
+        void UpdateHierarchyWindowInstances()
+        {
+            // 閉じたウィンドウの情報をクリーンアップ
+            for (int i = 0; i < HierarchyWindow.windows.Count; ++i)
+            {
+                if (HierarchyWindow.windows[i].editorWindow == null)
+                {
+                    HierarchyWindow.windows[i].Dispose();
+                    --i;
+                }
+            }
+
+            // 新しいHierarchyウィンドウを追跡対象に追加
+            foreach (EditorWindow window in GetAllSceneHierarchyWindowsDelegate())
+            {
+                if (!HierarchyWindow.instances.ContainsKey(window.GetInstanceID()))
+                {
+                    var hierarchyWindow = new HierarchyWindow(window);
+                    hierarchyWindow.SetWindowTitle("Hierarchy 2");
+                }
             }
         }
 
@@ -417,6 +421,43 @@ namespace Hierarchy2
 
         void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            if (mode == LoadSceneMode.Additive)
+            {
+                Debug.Log("Loaded Scene: " + scene.name);
+                EditorApplication.delayCall += () =>
+                {
+                    Debug.Log("OnSceneLoaded DelayCall Start. Scene: " + scene.name);
+                    UpdateHierarchyWindowInstances();
+                    Debug.Log("HierarchyWindow count: " + HierarchyWindow.windows.Count);
+
+                    Scene ddolScene = default;
+                    for (int j = 0; j < SceneManager.sceneCount; j++)
+                    {
+                        var s = SceneManager.GetSceneAt(j);
+                        if (s.name == "DontDestroyOnLoad")
+                        {
+                            ddolScene = s;
+                            break;
+                        }
+                    }
+
+                    for (int i = 0; i < HierarchyWindow.windows.Count; ++i)
+                    {
+                        Debug.Log($"Expanding scene in window {i}, handle: {scene.handle}");
+                        HierarchyWindow.windows[i].SetExpandedRecursive(scene.handle, true);
+
+                        if (ddolScene.IsValid())
+                        {
+                            var rootGameObjects = ddolScene.GetRootGameObjects();
+                            if (rootGameObjects.Length > 0)
+                            {
+                                Debug.Log($"Expanding DDOL scene via object in window {i}, id: {rootGameObjects[0].GetInstanceID()}");
+                                HierarchyWindow.windows[i].SetExpandedRecursive(rootGameObjects[0].GetInstanceID(), true);
+                            }
+                        }
+                    }
+                };
+            }
         }
 
         void OnSceneUnloaded(Scene scene)
@@ -1657,7 +1698,66 @@ namespace Hierarchy2
 
             public void Reflection()
             {
-                // treeview = m_TreeView.GetValue(m_SceneHierarchy.GetValue(editorWindow));
+                if (editorWindow != null && m_SceneHierarchy != null && m_TreeView != null)
+                {
+                    object sceneHierarchy = m_SceneHierarchy.GetValue(editorWindow);
+                    if (sceneHierarchy != null)
+                        treeview = m_TreeView.GetValue(sceneHierarchy);
+                }
+            }
+
+            public void SetExpanded(int id, bool expanded)
+            {
+                if (treeview == null) Reflection();
+                if (treeview == null) return;
+
+                object target = null;
+                MethodInfo method = null;
+
+                // Try to get 'data' property (ITreeViewDataSource)
+                if (m_TreeView_IData != null)
+                {
+                    var data = m_TreeView_IData.GetValue(treeview, null);
+                    if (data != null)
+                    {
+                        method = data.GetType().GetMethod("SetExpanded", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { typeof(int), typeof(bool) }, null);
+                        if (method != null)
+                        {
+                            target = data;
+                        }
+                    }
+                }
+
+                // If not found on data, try treeview itself
+                if (method == null)
+                {
+                    method = treeview.GetType().GetMethod("SetExpanded", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { typeof(int), typeof(bool) }, null);
+                    if (method != null)
+                    {
+                        target = treeview;
+                    }
+                }
+
+                if (method != null && target != null)
+                {
+                    method.Invoke(target, new object[] { id, expanded });
+                }
+                else
+                {
+                    Debug.LogError("SetExpanded method not found on TreeViewController or its data source.");
+                }
+            }
+
+            public void SetExpandedRecursive(int id, bool expanded)
+            {
+                if (editorWindow == null) return;
+
+                var method = SceneHierarchyWindow.GetMethod("SetExpandedRecursive", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                if (method != null)
+                {
+                    method.Invoke(editorWindow, new object[] { id, expanded });
+                }
             }
 
             public void Dispose()
