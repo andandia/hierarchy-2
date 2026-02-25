@@ -2111,6 +2111,28 @@ namespace Hierarchy2
             {
                 SettingsService.OpenProjectSettings("Project/Hierarchy");
             }
+
+            [MenuItem("GameObject/Add GameObject(Root)", false, 0)]
+            static void AddGameObjectRoot()
+            {
+                GameObject newGo = new GameObject("GameObject");
+                Undo.RegisterCreatedObjectUndo(newGo, "Create GameObject(Root)");
+
+                if (Selection.activeTransform != null)
+                {
+                    Transform selectedTransform = Selection.activeTransform;
+                    newGo.transform.SetParent(selectedTransform.parent, false);
+                    newGo.transform.SetSiblingIndex(selectedTransform.GetSiblingIndex());
+                }
+
+                Selection.activeGameObject = newGo;
+            }
+
+            [MenuItem("GameObject/Add GameObject(Root)", true)]
+            static bool ValidateAddGameObjectRoot()
+            {
+                return Selection.gameObjects.Length <= 1;
+            }
         }
     }
 }
