@@ -1720,7 +1720,7 @@ namespace Hierarchy2
                     var data = m_TreeView_IData.GetValue(treeview, null);
                     if (data != null)
                     {
-                        method = data.GetType().GetMethod("SetExpanded", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { typeof(int), typeof(bool) }, null);
+                        method = GetSetExpandedMethod(data.GetType());
                         if (method != null)
                         {
                             target = data;
@@ -1731,7 +1731,7 @@ namespace Hierarchy2
                 // If not found on data, try treeview itself
                 if (method == null)
                 {
-                    method = treeview.GetType().GetMethod("SetExpanded", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { typeof(int), typeof(bool) }, null);
+                    method = GetSetExpandedMethod(treeview.GetType());
                     if (method != null)
                     {
                         target = treeview;
@@ -1740,7 +1740,7 @@ namespace Hierarchy2
 
                 if (method != null && target != null)
                 {
-                    method.Invoke(target, new object[] { id, expanded });
+                    InvokeSetExpanded(method, target, id, expanded);
                 }
                 else
                 {
@@ -1752,12 +1752,57 @@ namespace Hierarchy2
             {
                 if (editorWindow == null) return;
 
-                var method = SceneHierarchyWindow.GetMethod("SetExpandedRecursive", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var method = GetSetExpandedMethod(SceneHierarchyWindow, "SetExpandedRecursive");
 
                 if (method != null)
                 {
-                    method.Invoke(editorWindow, new object[] { id, expanded });
+                    InvokeSetExpanded(method, editorWindow, id, expanded);
                 }
+            }
+
+            private MethodInfo GetSetExpandedMethod(Type type, string methodName = "SetExpanded")
+            {
+                // Try int version first
+                var method = type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(int), typeof(bool) }, null);
+                if (method != null) return method;
+
+                // Try to find by name and check parameters (for EntityId)
+                var methods = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                foreach (var m in methods)
+                {
+                    if (m.Name == methodName)
+                    {
+                        var parameters = m.GetParameters();
+                        if (parameters.Length == 2 && parameters[1].ParameterType == typeof(bool))
+                        {
+                            // If first parameter is EntityId (Unity 6+)
+                            if (parameters[0].ParameterType.Name == "EntityId")
+                            {
+                                return m;
+                            }
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            private void InvokeSetExpanded(MethodInfo method, object target, int id, bool expanded)
+            {
+                var parameters = method.GetParameters();
+                object firstParam = id;
+
+                if (parameters.Length > 0 && parameters[0].ParameterType.Name == "EntityId")
+                {
+                    // EntityId.FromULong(ulong) を使用して int から EntityId へ変換
+                    var fromULong = parameters[0].ParameterType.GetMethod("FromULong", BindingFlags.Static | BindingFlags.Public);
+                    if (fromULong != null)
+                    {
+                        firstParam = fromULong.Invoke(null, new object[] { (ulong)id });
+                    }
+                }
+
+                method.Invoke(target, new object[] { firstParam, expanded });
             }
 
             public void Dispose()
