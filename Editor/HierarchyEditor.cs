@@ -2151,6 +2151,28 @@ namespace Hierarchy2
                 Selection.activeTransform = gameObject.transform;
             }
 
+            [MenuItem("Tools/Hierarchy 2/Enable Hierarchy2", false, 0)]
+            static void ToggleHierarchy2()
+            {
+                var settings = HierarchyEditor.Instance.settings;
+                settings.activeHierarchy = !settings.activeHierarchy;
+
+                if (settings.activeHierarchy)
+                    HierarchyEditor.Instance.Invoke();
+                else
+                    HierarchyEditor.Instance.Dispose();
+            }
+
+            [MenuItem("Tools/Hierarchy 2/Enable Hierarchy2", true, 0)]
+            static bool ValidateToggleHierarchy2()
+            {
+                if (HierarchyEditor.Instance?.settings != null)
+                {
+                    Menu.SetChecked("Tools/Hierarchy 2/Enable Hierarchy2", HierarchyEditor.Instance.settings.activeHierarchy);
+                }
+                return true;
+            }
+
             [MenuItem("Tools/Hierarchy 2/Settings", priority = 0)]
             static void OpenHierarchyProjectSettings()
             {
