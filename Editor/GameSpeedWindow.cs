@@ -22,6 +22,9 @@ namespace Hierarchy2
             window.Show();
         }
 
+        // 対象のAudioSourceを保持
+        private AudioSource targetAudioSource;
+
         private void OnGUI()
         {
             GUILayout.Label("ゲーム速度設定", EditorStyles.boldLabel);
@@ -46,6 +49,37 @@ namespace Hierarchy2
             }
 
             GUILayout.EndHorizontal();
+
+            GUILayout.Space(10);
+
+            GUILayout.Label("オーディオピッチ設定", EditorStyles.boldLabel);
+
+            // AudioSourceをアタッチするフィールド
+            targetAudioSource = (AudioSource)EditorGUILayout.ObjectField("Audio Source", targetAudioSource, typeof(AudioSource), true);
+
+            if (targetAudioSource != null)
+            {
+                GUILayout.BeginHorizontal();
+
+                // ピッチスライダーの表示 (0.1 から 2.0 まで)
+                float newPitch = EditorGUILayout.Slider("Pitch", targetAudioSource.pitch, 0.1f, 2.0f);
+
+                // 0.1刻みに丸める
+                newPitch = Mathf.Round(newPitch * 10f) / 10f;
+
+                if (newPitch != targetAudioSource.pitch)
+                {
+                    targetAudioSource.pitch = newPitch;
+                }
+
+                // リセットボタン
+                if (GUILayout.Button("1.0にリセット", GUILayout.Width(100)))
+                {
+                    targetAudioSource.pitch = 1.0f;
+                }
+
+                GUILayout.EndHorizontal();
+            }
         }
 
         /// <summary>
