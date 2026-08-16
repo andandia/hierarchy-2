@@ -21,8 +21,14 @@ namespace Hierarchy2
         // スクロール位置
         private Vector2 scrollPosition;
 
-        // 保存用のEditorPrefsキー
-        private const string PREFS_KEY = "Hierarchy2_SceneSwitcher_Paths";
+        // 保存用のEditorPrefsキーのベース
+        private const string PREFS_KEY_BASE = "Hierarchy2_SceneSwitcher_Paths_";
+
+        // プロジェクト固有のEditorPrefsキーを取得
+        private string ProjectPrefsKey
+        {
+            get { return PREFS_KEY_BASE + Application.dataPath.GetHashCode(); }
+        }
 
         // ReorderableListのインスタンス
         private ReorderableList reorderableList;
@@ -54,7 +60,7 @@ namespace Hierarchy2
         private void LoadScenes()
         {
             scenePaths.Clear();
-            string data = EditorPrefs.GetString(PREFS_KEY, "");
+            string data = EditorPrefs.GetString(ProjectPrefsKey, "");
             if (!string.IsNullOrEmpty(data))
             {
                 var loaded = data.Split(';').Where(s => !string.IsNullOrEmpty(s));
@@ -68,7 +74,7 @@ namespace Hierarchy2
         private void SaveScenes()
         {
             string data = string.Join(";", scenePaths);
-            EditorPrefs.SetString(PREFS_KEY, data);
+            EditorPrefs.SetString(ProjectPrefsKey, data);
         }
 
         /// <summary>
