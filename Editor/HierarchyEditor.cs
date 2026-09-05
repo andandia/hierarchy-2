@@ -394,7 +394,7 @@ namespace Hierarchy2
             foreach (EditorWindow window in GetAllSceneHierarchyWindowsDelegate())
             {
                 #if UNITY_6000_0_OR_NEWER
-                if (!HierarchyWindow.instances.ContainsKey((int)window.GetEntityId()))
+                if (!HierarchyWindow.instances.ContainsKey(window.GetEntityId().GetHashCode()))
 #else
                 if (!HierarchyWindow.instances.ContainsKey(window.GetInstanceID()))
 #endif
@@ -464,8 +464,8 @@ namespace Hierarchy2
                             if (rootGameObjects.Length > 0)
                             {
 #if UNITY_6000_0_OR_NEWER
-                                Debug.Log($"Expanding DDOL scene via object in window {i}, id: {(int)rootGameObjects[0].GetEntityId()}");
-                                HierarchyWindow.windows[i].SetExpandedRecursive((int)rootGameObjects[0].GetEntityId(), true);
+                                Debug.Log($"Expanding DDOL scene via object in window {i}, id: {rootGameObjects[0].GetEntityId()}");
+                                HierarchyWindow.windows[i].SetExpandedRecursive(rootGameObjects[0].GetEntityId(), true);
 #else
                                 Debug.Log($"Expanding DDOL scene via object in window {i}, id: {rootGameObjects[0].GetInstanceID()}");
                                 HierarchyWindow.windows[i].SetExpandedRecursive(rootGameObjects[0].GetInstanceID(), true);
@@ -521,7 +521,7 @@ namespace Hierarchy2
 #if UNITY_6000_0_OR_NEWER
         void HierarchyOnGUI(UnityEngine.EntityId entityId, Rect selectionRect)
         {
-            HierarchyOnGUIInternal((int)entityId, selectionRect);
+            HierarchyOnGUIInternal(entityId.GetHashCode(), selectionRect);
         }
 #else
         void HierarchyOnGUI(int selectionID, Rect selectionRect)
@@ -575,7 +575,7 @@ namespace Hierarchy2
             rowItem.Dispose();
             rowItem.ID = selectionID;
 #if UNITY_6000_0_OR_NEWER
-            rowItem.gameObject = EditorUtility.EntityIdToObject((UnityEngine.EntityId)rowItem.ID) as GameObject;
+            rowItem.gameObject = EditorUtility.EntityIdToObject(UnityEngine.EntityId.FromULong((ulong)rowItem.ID)) as GameObject;
 #else
             rowItem.gameObject = EditorUtility.InstanceIDToObject(rowItem.ID) as GameObject;
 #endif
@@ -595,7 +595,7 @@ namespace Hierarchy2
                     rowItem.isSeparator = rowItem.name.StartsWith(settings.separatorStartWith);
 
 #if UNITY_6000_0_OR_NEWER
-                rowItem.isDirty = EditorUtility.IsDirty((UnityEngine.EntityId)selectionID);
+                rowItem.isDirty = EditorUtility.IsDirty(UnityEngine.EntityId.FromULong((ulong)selectionID));
 #else
                 rowItem.isDirty = EditorUtility.IsDirty(selectionID);
 #endif
@@ -1617,9 +1617,9 @@ namespace Hierarchy2
 
         // 選択中かどうかの判定
 #if UNITY_6000_0_OR_NEWER
-        bool InSelection(int ID) => Selection.Contains((UnityEngine.EntityId)ID);
+        bool InSelection(int ID) => Selection.Contains(UnityEngine.EntityId.FromULong((ulong)ID));
 
-        bool IsElementDirty(int ID) => EditorUtility.IsDirty((UnityEngine.EntityId)ID);
+        bool IsElementDirty(int ID) => EditorUtility.IsDirty(UnityEngine.EntityId.FromULong((ulong)ID));
 #else
         bool InSelection(int ID) => Selection.Contains(ID) ? true : false;
 
@@ -1730,7 +1730,7 @@ namespace Hierarchy2
                 this.editorWindow = editorWindow;
 
 #if UNITY_6000_0_OR_NEWER
-                instanceID = (int)this.editorWindow.GetEntityId();
+                instanceID = this.editorWindow.GetEntityId().GetHashCode();
 #else
                 instanceID = this.editorWindow.GetInstanceID();
 #endif
@@ -1753,7 +1753,7 @@ namespace Hierarchy2
                 }
             }
 
-            public void SetExpanded(int id, bool expanded)
+            public void SetExpanded(object id, bool expanded)
             {
                 if (treeview == null) Reflection();
                 if (treeview == null) return;
@@ -1795,7 +1795,7 @@ namespace Hierarchy2
                 }
             }
 
-            public void SetExpandedRecursive(int id, bool expanded)
+            public void SetExpandedRecursive(object id, bool expanded)
             {
                 if (editorWindow == null) return;
 
@@ -1834,18 +1834,29 @@ namespace Hierarchy2
                 return null;
             }
 
-            private void InvokeSetExpanded(MethodInfo method, object target, int id, bool expanded)
+            private void InvokeSetExpanded(MethodInfo method, object target, object id, bool expanded)
             {
                 var parameters = method.GetParameters();
                 object firstParam = id;
 
                 if (parameters.Length > 0 && parameters[0].ParameterType.Name == "EntityId")
                 {
-                    // EntityId.FromULong(ulong) を使用して int から EntityId へ変換
-                    var fromULong = parameters[0].ParameterType.GetMethod("FromULong", BindingFlags.Static | BindingFlags.Public);
-                    if (fromULong != null)
+                    if (id != null && id.GetType().Name == "EntityId")
                     {
-                        firstParam = fromULong.Invoke(null, new object[] { (ulong)id });
+                        firstParam = id;
+                    }
+                    else
+                    {
+                        ulong ulongVal = 0;
+                        if (id is int iVal) ulongVal = (ulong)iVal;
+                        else if (id is ulong uVal) ulongVal = uVal;
+                        else if (id != null) ulongVal = Convert.ToUInt64(id);
+
+                        var fromULong = parameters[0].ParameterType.GetMethod("FromULong", BindingFlags.Static | BindingFlags.Public);
+                        if (fromULong != null)
+                        {
+                            firstParam = fromULong.Invoke(null, new object[] { ulongVal });
+                        }
                     }
                 }
 
