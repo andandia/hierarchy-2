@@ -21,16 +21,16 @@ namespace Hierarchy2
 #if UNITY_6000_0_OR_NEWER
         private static void OnHierarchyGUI(UnityEngine.EntityId entityId, Rect selectionRect)
         {
-            OnHierarchyGUIInternal((int)entityId, selectionRect);
+            OnHierarchyGUIInternal(selectionRect);
         }
 #else
         private static void OnHierarchyGUI(int instanceID, Rect selectionRect)
         {
-            OnHierarchyGUIInternal(instanceID, selectionRect);
+            OnHierarchyGUIInternal(selectionRect);
         }
 #endif
 
-        private static void OnHierarchyGUIInternal(int instanceID, Rect selectionRect)
+        private static void OnHierarchyGUIInternal(Rect selectionRect)
         {
             // ドラッグ＆ドロップのイベントを取得
             Event currentEvent = Event.current;
