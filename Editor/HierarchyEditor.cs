@@ -254,7 +254,11 @@ namespace Hierarchy2
             resources.GenerateKeyForAssets();
 
             // HierarchyのGUIイベント登録
+            #if UNITY_6000_0_OR_NEWER
+            EditorApplication.hierarchyWindowItemByEntityIdOnGUI += HierarchyOnGUI;
+#else
             EditorApplication.hierarchyWindowItemOnGUI += HierarchyOnGUI;
+#endif
 
             // 設定に応じて有効化/無効化
             if (settings.activeHierarchy)
@@ -389,7 +393,11 @@ namespace Hierarchy2
             // 新しいHierarchyウィンドウを追跡対象に追加
             foreach (EditorWindow window in GetAllSceneHierarchyWindowsDelegate())
             {
+                #if UNITY_6000_0_OR_NEWER
+                if (!HierarchyWindow.instances.ContainsKey((int)window.GetEntityId()))
+#else
                 if (!HierarchyWindow.instances.ContainsKey(window.GetInstanceID()))
+#endif
                 {
                     var hierarchyWindow = new HierarchyWindow(window);
                     hierarchyWindow.SetWindowTitle("Hierarchy 2");
@@ -444,15 +452,24 @@ namespace Hierarchy2
                     for (int i = 0; i < HierarchyWindow.windows.Count; ++i)
                     {
                         Debug.Log($"Expanding scene in window {i}, handle: {scene.handle}");
+#if UNITY_6000_0_OR_NEWER
+                        HierarchyWindow.windows[i].SetExpandedRecursive(scene.handle.GetRawData(), true);
+#else
                         HierarchyWindow.windows[i].SetExpandedRecursive(scene.handle, true);
+#endif
 
                         if (ddolScene.IsValid())
                         {
                             var rootGameObjects = ddolScene.GetRootGameObjects();
                             if (rootGameObjects.Length > 0)
                             {
+#if UNITY_6000_0_OR_NEWER
+                                Debug.Log($"Expanding DDOL scene via object in window {i}, id: {(int)rootGameObjects[0].GetEntityId()}");
+                                HierarchyWindow.windows[i].SetExpandedRecursive((int)rootGameObjects[0].GetEntityId(), true);
+#else
                                 Debug.Log($"Expanding DDOL scene via object in window {i}, id: {rootGameObjects[0].GetInstanceID()}");
                                 HierarchyWindow.windows[i].SetExpandedRecursive(rootGameObjects[0].GetInstanceID(), true);
+#endif
                             }
                         }
                     }
@@ -501,7 +518,19 @@ namespace Hierarchy2
         }
 
         // Hierarchyの各アイテム描画時のGUI処理
+#if UNITY_6000_0_OR_NEWER
+        void HierarchyOnGUI(UnityEditor.EntityId entityId, Rect selectionRect)
+        {
+            HierarchyOnGUIInternal((int)entityId, selectionRect);
+        }
+#else
         void HierarchyOnGUI(int selectionID, Rect selectionRect)
+        {
+            HierarchyOnGUIInternal(selectionID, selectionRect);
+        }
+#endif
+
+        void HierarchyOnGUIInternal(int selectionID, Rect selectionRect)
         {
             currentEvent = Event.current;
 
@@ -545,7 +574,11 @@ namespace Hierarchy2
             // 行アイテム情報の更新
             rowItem.Dispose();
             rowItem.ID = selectionID;
+#if UNITY_6000_0_OR_NEWER
+            rowItem.gameObject = EditorUtility.EntityIdToObject((UnityEditor.EntityId)rowItem.ID) as GameObject;
+#else
             rowItem.gameObject = EditorUtility.InstanceIDToObject(rowItem.ID) as GameObject;
+#endif
             rowItem.rect = selectionRect;
             rowItem.rowIndex = GetRowIndex(selectionRect);
             rowItem.isSelected = InSelection(selectionID);
@@ -561,7 +594,11 @@ namespace Hierarchy2
                 if (!(rowItem.isFolder = rowItem.hierarchyFolder))
                     rowItem.isSeparator = rowItem.name.StartsWith(settings.separatorStartWith);
 
+#if UNITY_6000_0_OR_NEWER
+                rowItem.isDirty = EditorUtility.IsDirty((UnityEditor.EntityId)selectionID);
+#else
                 rowItem.isDirty = EditorUtility.IsDirty(selectionID);
+#endif
 
                 // プレハブ判定
                 if (true && !rowItem.isSeparator && rowItem.isDirty)
@@ -1579,9 +1616,15 @@ namespace Hierarchy2
         int GetRowIndex(Rect rect) => (int) (rect.y / rect.height);
 
         // 選択中かどうかの判定
+#if UNITY_6000_0_OR_NEWER
+        bool InSelection(int ID) => Selection.Contains((UnityEditor.EntityId)ID);
+
+        bool IsElementDirty(int ID) => EditorUtility.IsDirty((UnityEditor.EntityId)ID);
+#else
         bool InSelection(int ID) => Selection.Contains(ID) ? true : false;
 
         bool IsElementDirty(int ID) => EditorUtility.IsDirty(ID);
+#endif
 
         // 右側基準でRectを計算するユーティリティ
         Rect RectFromRight(Rect rect, float width, float usedWidth)
@@ -1686,7 +1729,11 @@ namespace Hierarchy2
             {
                 this.editorWindow = editorWindow;
 
+#if UNITY_6000_0_OR_NEWER
+                instanceID = (int)this.editorWindow.GetEntityId();
+#else
                 instanceID = this.editorWindow.GetInstanceID();
+#endif
 
                 instances.Add(instanceID, this.editorWindow);
                 windows.Add(this);
@@ -1815,7 +1862,11 @@ namespace Hierarchy2
                 // Debug.Log(string.Format("HierarchyWindow {0} Disposed.", instanceID));
             }
 
+#if UNITY_6000_0_OR_NEWER
+            public TreeViewItem<int> GetItemAndRowIndex(int id, out int row)
+#else
             public TreeViewItem GetItemAndRowIndex(int id, out int row)
+#endif
             {
                 row = -1;
                 // if (treeview == null) return null;
@@ -2037,10 +2088,20 @@ namespace Hierarchy2
 
             internal static GUIStyle TreeBoldLabel
             {
+#if UNITY_6000_0_OR_NEWER
+                get { return UnityEditor.IMGUI.Controls.TreeView<int>.DefaultStyles.boldLabel; }
+#else
                 get { return UnityEditor.IMGUI.Controls.TreeView.DefaultStyles.boldLabel; }
+#endif
             }
 
-            internal static GUIStyle TreeLabel = new GUIStyle(UnityEditor.IMGUI.Controls.TreeView.DefaultStyles.label)
+            internal static GUIStyle TreeLabel = new GUIStyle(
+#if UNITY_6000_0_OR_NEWER
+                UnityEditor.IMGUI.Controls.TreeView<int>.DefaultStyles.label
+#else
+                UnityEditor.IMGUI.Controls.TreeView.DefaultStyles.label
+#endif
+            )
             {
                 richText = true,
                 normal = new GUIStyleState() {textColor = Color.white}
