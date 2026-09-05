@@ -11,10 +11,26 @@ namespace Hierarchy2
         static ScriptToGameObjectAutoCreator()
         {
             // ヒエラルキーウィンドウのGUIイベントにフックする
+#if UNITY_6000_0_OR_NEWER
+            EditorApplication.hierarchyWindowItemByEntityIdOnGUI += OnHierarchyGUI;
+#else
             EditorApplication.hierarchyWindowItemOnGUI += OnHierarchyGUI;
+#endif
         }
 
+#if UNITY_6000_0_OR_NEWER
+        private static void OnHierarchyGUI(UnityEditor.EntityId entityId, Rect selectionRect)
+        {
+            OnHierarchyGUIInternal((int)entityId, selectionRect);
+        }
+#else
         private static void OnHierarchyGUI(int instanceID, Rect selectionRect)
+        {
+            OnHierarchyGUIInternal(instanceID, selectionRect);
+        }
+#endif
+
+        private static void OnHierarchyGUIInternal(int instanceID, Rect selectionRect)
         {
             // ドラッグ＆ドロップのイベントを取得
             Event currentEvent = Event.current;
