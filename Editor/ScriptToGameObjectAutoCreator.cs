@@ -19,7 +19,7 @@ namespace Hierarchy2
         }
 
 #if UNITY_6000_0_OR_NEWER
-        private static void OnHierarchyGUI(UnityEditor.EntityId entityId, Rect selectionRect)
+        private static void OnHierarchyGUI(UnityEngine.EntityId entityId, Rect selectionRect)
         {
             OnHierarchyGUIInternal((int)entityId, selectionRect);
         }

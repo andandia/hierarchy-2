@@ -519,7 +519,7 @@ namespace Hierarchy2
 
         // Hierarchyの各アイテム描画時のGUI処理
 #if UNITY_6000_0_OR_NEWER
-        void HierarchyOnGUI(UnityEditor.EntityId entityId, Rect selectionRect)
+        void HierarchyOnGUI(UnityEngine.EntityId entityId, Rect selectionRect)
         {
             HierarchyOnGUIInternal((int)entityId, selectionRect);
         }
@@ -575,7 +575,7 @@ namespace Hierarchy2
             rowItem.Dispose();
             rowItem.ID = selectionID;
 #if UNITY_6000_0_OR_NEWER
-            rowItem.gameObject = EditorUtility.EntityIdToObject((UnityEditor.EntityId)rowItem.ID) as GameObject;
+            rowItem.gameObject = EditorUtility.EntityIdToObject((UnityEngine.EntityId)rowItem.ID) as GameObject;
 #else
             rowItem.gameObject = EditorUtility.InstanceIDToObject(rowItem.ID) as GameObject;
 #endif
@@ -595,7 +595,7 @@ namespace Hierarchy2
                     rowItem.isSeparator = rowItem.name.StartsWith(settings.separatorStartWith);
 
 #if UNITY_6000_0_OR_NEWER
-                rowItem.isDirty = EditorUtility.IsDirty((UnityEditor.EntityId)selectionID);
+                rowItem.isDirty = EditorUtility.IsDirty((UnityEngine.EntityId)selectionID);
 #else
                 rowItem.isDirty = EditorUtility.IsDirty(selectionID);
 #endif
@@ -1617,9 +1617,9 @@ namespace Hierarchy2
 
         // 選択中かどうかの判定
 #if UNITY_6000_0_OR_NEWER
-        bool InSelection(int ID) => Selection.Contains((UnityEditor.EntityId)ID);
+        bool InSelection(int ID) => Selection.Contains((UnityEngine.EntityId)ID);
 
-        bool IsElementDirty(int ID) => EditorUtility.IsDirty((UnityEditor.EntityId)ID);
+        bool IsElementDirty(int ID) => EditorUtility.IsDirty((UnityEngine.EntityId)ID);
 #else
         bool InSelection(int ID) => Selection.Contains(ID) ? true : false;
 
