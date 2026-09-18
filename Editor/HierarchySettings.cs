@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
@@ -149,6 +149,7 @@ namespace Hierarchy2
         }
 
         [HideInInspector] public bool activeHierarchy = true;
+        [HideInInspector] public bool activeHierarchyRe = true;
         public bool displayCustomObjectIcon = true;
         public bool displayTreeView = true;
         public bool displayRowBackground = true;
@@ -894,4 +895,4 @@ namespace Hierarchy2
                 SettingsService.OpenProjectSettings("Project/Hierarchy");
         }
     }
-}
+} 
